@@ -23,3 +23,4 @@ Table of contents
    :maxdepth: 2
 
    obtaining-koi
+   deployments
