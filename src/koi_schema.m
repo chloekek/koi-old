@@ -10,6 +10,8 @@
     deployment;
     function(schema, schema);
     list(schema);
+    % FIXME: map has no canonical representation, so unification does not
+    % work properly on record types.
     record(map(string, schema));
     string.
 
