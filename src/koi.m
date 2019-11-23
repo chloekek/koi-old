@@ -18,11 +18,12 @@
 :- import_module string.
 
 main(!IO) :-
-    Schema1 = record_schema(
+    Schema1 = koi_schema.record(
         map.from_assoc_list(
-            [ "a" - string_schema
-            , "b" - string_schema ]
+            [ "a" - koi_schema.string
+            , "b" - koi_schema.string ]
         )
     ),
-    Schema2 = function_schema(list_schema(Schema1), deployment_schema),
-    write_string(pretty_schema(Schema2) ++ "\n", !IO).
+    Schema2 = koi_schema.function(koi_schema.list(Schema1),
+                                  koi_schema.deployment),
+    write_string(koi_schema.pretty(Schema2) ++ "\n", !IO).

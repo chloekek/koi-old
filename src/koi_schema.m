@@ -6,11 +6,11 @@
 :- import_module map.
 
 :- type schema --->
-    deployment_schema;
-    function_schema(schema, schema);
-    list_schema(schema);
-    record_schema(map(string, schema));
-    string_schema.
+    deployment;
+    function(schema, schema);
+    list(schema);
+    record(map(string, schema));
+    string.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Subtyping
@@ -26,11 +26,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Pretty
 
-:- func pretty_schema(schema) = string.
-:- mode pretty_schema(in) = out is det.
+:- func pretty(schema) = string.
+:- mode pretty(in) = out is det.
 
-:- pred pretty_schema(schema, string).
-:- mode pretty_schema(in, out) is det.
+:- pred pretty(schema, string).
+:- mode pretty(in, out) is det.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- implementation.
@@ -42,40 +42,35 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Subtyping
 
-:- pred subschema_record_field(map(string, schema), string, schema, {}, {}).
-:- mode subschema_record_field(in, in, in, in, out) is semidet.
+:- pred subschema_field(map(string, schema), string, schema, {}, {}).
+:- mode subschema_field(in, in, in, in, out) is semidet.
 
-subschema(deployment_schema, deployment_schema).
-subschema(function_schema(A, B), function_schema(C, D)) :-
-    superschema(A, C), subschema(B, D).
-subschema(list_schema(A), list_schema(B)) :- subschema(A, B).
-subschema(record_schema(A), record_schema(B)) :-
-    map.foldl(subschema_record_field(A), B, {}, {}).
-subschema(string_schema, string_schema).
+subschema(deployment, deployment).
+subschema(function(A, B), function(C, D)) :- superschema(A, C), subschema(B, D).
+subschema(list(A), list(B)) :- subschema(A, B).
+subschema(record(A), record(B)) :- map.foldl(subschema_field(A), B, {}, {}).
+subschema(string, string).
 
 superschema(A, B) :- subschema(B, A).
 
-subschema_record_field(Subrecord, Name, Superschema, {}, {}) :-
+subschema_field(Subrecord, Name, Superschema, {}, {}) :-
     map.search(Subrecord, Name, Subschema),
     subschema(Subschema, Superschema).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Pretty
 
-:- func pretty_record_field(pair(string, schema)) = string.
-:- mode pretty_record_field(in) = out is det.
+:- func pretty_field(pair(string, schema)) = string.
+:- mode pretty_field(in) = out is det.
 
-pretty_schema(Schema) = Pretty :-
-    pretty_schema(Schema, Pretty).
+pretty(Schema) = Pretty :-
+    pretty(Schema, Pretty).
 
-pretty_schema(deployment_schema, "deployment").
-pretty_schema(function_schema(A, B),
-              "(" ++ pretty_schema(A) ++ " -> " ++ pretty_schema(B) ++ ")").
-pretty_schema(list_schema(A), "[" ++ pretty_schema(A) ++ "]").
-pretty_schema(record_schema(A), Pretty) :-
-    Fields   = map.to_sorted_assoc_list(A),
-    Pretties = list.map(pretty_record_field, Fields),
-    Pretty   = "{" ++ string.join_list(", ", Pretties) ++ "}".
-pretty_schema(string_schema, "string").
+pretty(deployment, "deployment").
+pretty(function(A, B), "(" ++ pretty(A) ++ " -> " ++ pretty(B) ++ ")").
+pretty(list(A), "[" ++ pretty(A) ++ "]").
+pretty(record(A), "{" ++ string.join_list(", ", Pretties) ++ "}") :-
+    Pretties = list.map(pretty_field, map.to_sorted_assoc_list(A)).
+pretty(string, "string").
 
-pretty_record_field(Name - Schema) = Name ++ " : " ++ pretty_schema(Schema).
+pretty_field(Name - Schema) = Name ++ " : " ++ pretty(Schema).
