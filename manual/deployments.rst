@@ -18,6 +18,36 @@ of the following type:
 
    \text{Deployment} = \text{State} \multimap \text{State}
 
+Creating new deployments
+------------------------
+
+Physically, a deployment is a value that pairs
+an archive of files with a command.
+**Running** a deployment executes the command
+in a temporary directory in which this archive is expanded.
+The command is expected to inspect the current state of the system
+and alter it in such a way that the system is in the new state.
+Typical contents of the archive
+are static files that the command needs,
+such as configuration files or computer programs.
+After the deployment is run,
+the temporary directory is removed.
+
+The primitive function :math:`\text{deployment}`
+creates a deployment from an archive of files and a command:
+
+.. math::
+
+   \text{deployment}(-, -)
+      : \text{File}^\star \times \text{String}^+ \to \text{Deployment}
+
+In fact, assuming the usual behavior of the program *true(1)*,
+the following equation should hold:
+
+.. math::
+
+   \text{deployment}(\langle\rangle, \langle\texttt{"/bin/true"}\rangle) = 1
+
 Combining deployments
 ---------------------
 
@@ -56,36 +86,6 @@ want to apply any changes:
 .. math::
 
    \forall\,a. a \circ 1 = 1 \circ a = a
-
-Creating new deployments
-------------------------
-
-Physically, a deployment is a value that pairs
-an archive of files with a command.
-**Running** a deployment executes the command
-in a temporary directory in which this archive is expanded.
-The command is expected to inspect the current state of the system
-and alter it in such a way that the system is in the new state.
-Typical contents of the archive
-are static files that the command needs,
-such as configuration files or computer programs.
-After the deployment is run,
-the temporary directory is removed.
-
-The primitive function :math:`\text{deployment}`
-creates a deployment from an archive of files and a command:
-
-.. math::
-
-   \text{deployment}(-, -)
-      : \text{File}^\star \times \text{String}^+ \to \text{Deployment}
-
-In fact, assuming the usual behavior of the program *true(1)*,
-the following equation should hold:
-
-.. math::
-
-   \text{deployment}(\langle\rangle, \langle\texttt{"/bin/true"}\rangle) = 1
 
 Deploying to servers
 --------------------
