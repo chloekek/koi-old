@@ -11,19 +11,23 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- implementation.
 
+:- import_module koi_expression.
 :- import_module koi_schema.
 :- import_module list.
-:- import_module map.
-:- import_module pair.
 :- import_module string.
 
 main(!IO) :-
-    Schema1 = koi_schema.record(
-        map.from_assoc_list(
-            [ "a" - koi_schema.string
-            , "b" - koi_schema.string ]
-        )
-    ),
-    Schema2 = koi_schema.function(koi_schema.list(Schema1),
-                                  koi_schema.deployment),
-    write_string(koi_schema.pretty(Schema2) ++ "\n", !IO).
+    Expression =
+        koi_expression.call(
+            koi_expression.call(
+                koi_expression.call(
+                    koi_expression.variable("deployment"),
+                    koi_expression.list([])
+                ),
+                koi_expression.string("systemctl")
+            ),
+            koi_expression.list([koi_expression.string("daemon-reload")])
+        ),
+    ( if koi_expression.schema(koi_expression.builtin, Expression, Schema)
+    then write_string(koi_schema.pretty(Schema) ++ "\n", !IO)
+    else write_string("!! Ill-typed\n", !IO) ).

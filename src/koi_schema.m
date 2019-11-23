@@ -6,6 +6,7 @@
 :- import_module map.
 
 :- type schema --->
+    bottom;
     deployment;
     function(schema, schema);
     list(schema);
@@ -15,11 +16,15 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Subtyping
 
-% The predicate subschema(A, B) checks whether A is a subschema of B.
+:- func lub(schema, schema) = schema.
+:- mode lub(in, in) = out is semidet.
+
+:- pred lub(schema, schema, schema).
+:- mode lub(in, in, out) is semidet.
+
 :- pred subschema(schema, schema).
 :- mode subschema(in, in) is semidet.
 
-% The predicate superschema(A, B) checks whether B is a subschema of A.
 :- pred superschema(schema, schema).
 :- mode superschema(in, in) is semidet.
 
@@ -42,20 +47,33 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Subtyping
 
-:- pred subschema_field(map(string, schema), string, schema, {}, {}).
-:- mode subschema_field(in, in, in, in, out) is semidet.
+lub(A, B) = C :-
+    lub(A, B, C).
 
-subschema(deployment, deployment).
-subschema(function(A, B), function(C, D)) :- superschema(A, C), subschema(B, D).
-subschema(list(A), list(B)) :- subschema(A, B).
-subschema(record(A), record(B)) :- map.foldl(subschema_field(A), B, {}, {}).
-subschema(string, string).
+lub(bottom, bottom, bottom).
+lub(bottom, deployment, deployment).
+lub(bottom, function(A, B), function(A, B)).
+lub(bottom, list(A), list(A)).
+lub(bottom, record(A), record(A)).
+lub(bottom, string, string).
 
+lub(deployment, bottom, deployment).
+lub(deployment, deployment, deployment).
+
+lub(function(A, B), bottom, function(A, B)).
+lub(function(A, B), function(A, C), function(A, lub(B, C))). % TODO: Parameter?
+
+lub(list(A), bottom, list(A)).
+lub(list(A), list(B), list(lub(A, B))).
+
+lub(record(A), bottom, record(A)).
+lub(record(A), record(B), record(C)) :- map.union(lub, A, B, C).
+
+lub(string, bottom, string).
+lub(string, string, string).
+
+subschema(A, B) :- lub(A, B, B).
 superschema(A, B) :- subschema(B, A).
-
-subschema_field(Subrecord, Name, Superschema, {}, {}) :-
-    map.search(Subrecord, Name, Subschema),
-    subschema(Subschema, Superschema).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Pretty
@@ -66,6 +84,7 @@ subschema_field(Subrecord, Name, Superschema, {}, {}) :-
 pretty(Schema) = Pretty :-
     pretty(Schema, Pretty).
 
+pretty(bottom, "bottom").
 pretty(deployment, "deployment").
 pretty(function(A, B), "(" ++ pretty(A) ++ " -> " ++ pretty(B) ++ ")").
 pretty(list(A), "[" ++ pretty(A) ++ "]").
