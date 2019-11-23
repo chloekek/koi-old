@@ -3,6 +3,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- interface.
 
+:- import_module bitmap.
 :- import_module koi_schema.
 :- import_module list.
 :- import_module map.
@@ -14,7 +15,7 @@
     let(string, expression, expression);
     list(list(expression));
     record(map(string, expression));
-    string(string);
+    string(bitmap);
     variable(string).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -38,21 +39,42 @@
 % Type checking
 
 builtin = map.from_assoc_list([
-    "deployment" -
-        koi_schema.function( koi_schema.list(koi_schema.string),
-        koi_schema.function( koi_schema.string,
-        koi_schema.function( koi_schema.list(koi_schema.string),
-                             koi_schema.deployment ))),
-    "identity" -
+    "__builtin_deployment" -
+        koi_schema.function(
+            koi_schema.record(
+                map.from_assoc_list([
+                    "files"     - koi_schema.list(koi_schema.string),
+                    "program"   - koi_schema.string,
+                    "arguments" - koi_schema.list(koi_schema.string)
+                ])
+            ),
+            koi_schema.deployment
+        ),
+
+    "__builtin_identity" -
         koi_schema.deployment,
-    "remote" -
-        koi_schema.function( koi_schema.string,
-        koi_schema.function( koi_schema.deployment,
-                             koi_schema.deployment )),
-    "sequence" -
-        koi_schema.function( koi_schema.deployment,
-        koi_schema.function( koi_schema.deployment,
-                             koi_schema.deployment ))
+
+    "__builtin_remote" -
+        koi_schema.function(
+            koi_schema.record(
+                map.from_assoc_list([
+                    "host"  - koi_schema.string,
+                    "inner" - koi_schema.deployment
+                ])
+            ),
+            koi_schema.deployment
+        ),
+
+    "__builtin_sequence" -
+        koi_schema.function(
+            koi_schema.record(
+                map.from_assoc_list([
+                    "first"  - koi_schema.deployment,
+                    "second" - koi_schema.deployment
+                ])
+            ),
+            koi_schema.deployment
+        )
 ]).
 
 schema(Env, call(Function, Argument), ResultSch) :-

@@ -42,6 +42,7 @@
 :- implementation.
 
 :- import_module map.
+:- import_module pair.
 
 :- pred many(pred(R, list(token), list(token)), list(R), list(token), list(token)).
 :- mode many(pred(out, in, out) is semidet, out, in, out) is det.
@@ -86,10 +87,6 @@ expression_2(Expr, !Tokens) :-
 
 :- pred param({string, schema}, list(token), list(token)).
 :- mode param(out, in, out) is semidet.
-
-:- pred binding({string, expression}, list(token), list(token)).
-:- mode binding(out, in, out) is semidet.
-
 param({Name, Sch}, !Tokens) :-
     !.Tokens = [token_paren_left        | !:Tokens],
     !.Tokens = [token_identifier(Name)  | !:Tokens],
@@ -97,6 +94,8 @@ param({Name, Sch}, !Tokens) :-
     schema_1(Sch,                          !Tokens),
     !.Tokens = [token_paren_right       | !:Tokens].
 
+:- pred binding({string, expression}, list(token), list(token)).
+:- mode binding(out, in, out) is semidet.
 binding({Name, Value}, !Tokens) :-
     ( !.Tokens = [token_val              | !:Tokens],
       !.Tokens = [token_identifier(Name) | !:Tokens],
@@ -116,6 +115,13 @@ binding({Name, Value}, !Tokens) :-
               koi_expression.lambda(ParamName, ParamSch, Inner)
       ),
       Value = list.foldr(Lambda, Params, Body) ).
+
+:- pred field(pair(string, expression), list(token), list(token)).
+:- mode field(out, in, out) is semidet.
+field(Name - Expr, !Tokens) :-
+    % TODO: Parse non-punned fields.
+    !.Tokens = [token_identifier(Name) | !:Tokens],
+    Expr = koi_expression.variable(Name).
 
 expression_3(Expr, !Tokens) :-
     !.Tokens = [token_fun            | !:Tokens],
@@ -148,10 +154,11 @@ expression_3(Expr, !Tokens) :-
     Expr = koi_expression.list(Exprs).
 
 expression_3(Expr, !Tokens) :-
-    % TODO: Parse non-empty records.
     !.Tokens = [token_brace_left  | !:Tokens],
+    separated(field, Fields,         !Tokens),
     !.Tokens = [token_brace_right | !:Tokens],
-    Expr = koi_expression.record(map.init).
+    Record = map.from_assoc_list(Fields),
+    Expr = koi_expression.record(Record).
 
 expression_3(Expr, !Tokens) :-
     !.Tokens = [token_string(Value) | !:Tokens],

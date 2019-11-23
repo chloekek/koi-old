@@ -3,6 +3,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- interface.
 
+:- import_module bitmap.
 :- import_module char.
 :- import_module list.
 
@@ -24,7 +25,7 @@
     token_let;
     token_val;
 
-    token_string(string);
+    token_string(bitmap);
 
     token_identifier(string).
 
@@ -34,6 +35,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- implementation.
 
+:- import_module int.
 :- import_module string.
 
 :- pred keyword(string, token).
@@ -79,8 +81,16 @@ keyword_or_identifier(Chars, [Token | Tokens]) :-
 string_literal(Chars, [Token | Tokens]) :-
     IsntQuote = (pred(C::in) is semidet :- not C = '"'),
     list.takewhile(IsntQuote, Chars, Value, ['"' | Tl]),
-    string.to_char_list(ValueStr, Value),
-    Token = token_string(ValueStr),
+
+    list.map(char.to_utf8, Value, ValueUtf8Points),
+    list.condense(ValueUtf8Points, ValueUtf8Units),
+    {_, ValueBytes} = list.foldl(
+        (func(Unit, {Index, Bytes}) = {Index + 1, Bytes ^ byte(Index) := Unit}),
+        ValueUtf8Units,
+        {0, bitmap.init(8 * list.length(ValueUtf8Units))}
+    ),
+
+    Token = token_string(ValueBytes),
     lex(Tl, Tokens).
 
 punctuation(['('      | Tl], [token_paren_left     | TlTokens]) :- lex(Tl, TlTokens).
