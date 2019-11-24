@@ -11,26 +11,16 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- implementation.
 
+:- import_module array.
 :- import_module koi_expression.
 :- import_module koi_lex.
 :- import_module koi_parse.
 :- import_module koi_recursive_descent.
+:- import_module koi_run.
 :- import_module koi_schema.
 :- import_module koi_value.
 :- import_module list.
 :- import_module string.
-
-:- pred phase_lex(string, io, io).
-:- mode phase_lex(in, di, uo) is det.
-
-:- pred phase_parse(list(token), io, io).
-:- mode phase_parse(in, di, uo) is det.
-
-:- pred phase_check(expression, io, io).
-:- mode phase_check(in, di, uo) is det.
-
-:- pred phase_evaluate(expression, io, io).
-:- mode phase_evaluate(in, di, uo) is det.
 
 main(!IO) :-
     Source = "
@@ -64,6 +54,8 @@ main(!IO) :-
     ",
     phase_lex(Source, !IO).
 
+:- pred phase_lex(string, io, io).
+:- mode phase_lex(in, di, uo) is det.
 phase_lex(Source, !IO) :-
     string.to_char_list(Source, Chars),
     koi_recursive_descent.initial_position("<example>", Pos),
@@ -85,6 +77,8 @@ phase_lex(Source, !IO) :-
     else
         true ).
 
+:- pred phase_parse(list(token), io, io).
+:- mode phase_parse(in, di, uo) is det.
 phase_parse(Tokens, !IO) :-
     ( if koi_parse.expression_1(Expr, Tokens, []) then
         write_string("Expression:   ", !IO),
@@ -94,6 +88,8 @@ phase_parse(Tokens, !IO) :-
     else
         write_string("!! Bad parse\n", !IO) ).
 
+:- pred phase_check(expression, io, io).
+:- mode phase_check(in, di, uo) is det.
 phase_check(Expr, !IO) :-
     ( if koi_expression.schema(koi_expression.builtin, Expr, Sch) then
         write_string("Type:         ", !IO),
@@ -103,10 +99,23 @@ phase_check(Expr, !IO) :-
     else
         write_string("!! Bad type\n", !IO) ).
 
+:- pred phase_evaluate(expression, io, io).
+:- mode phase_evaluate(in, di, uo) is det.
 phase_evaluate(Expr, !IO) :-
     ( if koi_value.evaluate(koi_value.builtin, Expr, Value) then
         write_string("Value:        ", !IO),
         write(Value, !IO),
-        write_string("\n\n", !IO)
+        write_string("\n\n", !IO),
+
+        ( if Value = koi_value.deployment(Deployment)
+        then phase_run(Deployment, !IO)
+        else write_string("!! Not a deployment\n", !IO) )
     else
         write_string("!! Bad program\n", !IO) ).
+
+:- pred phase_run(deployment, io, io).
+:- mode phase_run(in, di, uo) is det.
+phase_run(_Deployment, !IO) :-
+    koi_run.fork_exec("date", array.from_list(["date", "-R"]), Status, !IO),
+    write(Status, !IO),
+    write_string("\n\n", !IO).
