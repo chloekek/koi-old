@@ -5,7 +5,13 @@
 
 :- import_module bitmap.
 :- import_module char.
+:- import_module koi_recursive_descent.
 :- import_module list.
+
+:- type error --->
+    bad_string_literal(position);
+    unexpected_char(position, char);
+    unexpected_eof.
 
 :- type token --->
     token_brace_left;
@@ -29,8 +35,11 @@
 
     token_identifier(string).
 
-:- pred lex(list(char), list(token)).
-:- mode lex(in, out) is semidet.
+:- pred lex_tokens(char_stream, char_stream, result(error, list(lexeme(token)))).
+:- mode lex_tokens(in, out, out) is det.
+
+:- pred lex_token(char_stream, char_stream, result(error, lexeme(token))).
+:- mode lex_token(in, out, out) is det.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 :- implementation.
@@ -40,67 +49,97 @@
 
 :- pred keyword(string, token).
 :- mode keyword(in, out) is semidet.
-:- mode keyword(out, in) is semidet.
-
-:- pred keyword_or_identifier(list(char), list(token)).
-:- mode keyword_or_identifier(in, out) is semidet.
-
-:- pred string_literal(list(char), list(token)).
-:- mode string_literal(in, out) is semidet.
-
-:- pred punctuation(list(char), list(token)).
-:- mode punctuation(in, out) is semidet.
-
-lex([], []).
-lex([Hd | Tl], Tokens) :-
-    ( if char.is_whitespace(Hd) then
-        lex(Tl, Tokens)
-
-    else if char.is_alpha_or_underscore(Hd) then
-        keyword_or_identifier([Hd | Tl], Tokens)
-
-    else if Hd = '"' then
-        string_literal(Tl, Tokens)
-
-    else
-        punctuation([Hd | Tl], Tokens) ).
-
 keyword("fun", token_fun).
 keyword("in",  token_in).
 keyword("let", token_let).
 keyword("val", token_val).
 
-keyword_or_identifier(Chars, [Token | Tokens]) :-
-    list.takewhile(char.is_alnum_or_underscore, Chars, Name, Tl),
-    string.to_char_list(NameStr, Name),
-    ( if keyword(NameStr, Keyword)
-    then Token = Keyword
-    else Token = token_identifier(NameStr) ),
-    lex(Tl, Tokens).
+lex_tokens(!S, Res) :-
+    many(lex_token, !S, Res).
 
-string_literal(Chars, [Token | Tokens]) :-
-    IsntQuote = (pred(C::in) is semidet :- not C = '"'),
-    list.takewhile(IsntQuote, Chars, Value, ['"' | Tl]),
+lex_token(!S, Res) :-
+    peek(!.S, Head),
 
-    list.map(char.to_utf8, Value, ValueUtf8Points),
-    list.condense(ValueUtf8Points, ValueUtf8Units),
-    {_, ValueBytes} = list.foldl(
-        (func(Unit, {Index, Bytes}) = {Index + 1, Bytes ^ byte(Index) := Unit}),
-        ValueUtf8Units,
-        {0, bitmap.init(8 * list.length(ValueUtf8Units))}
-    ),
+    ( if Head = ok(Char), char.is_whitespace(Char) then
+        consume(!S, _),
+        lex_token(!S, Res)
 
-    Token = token_string(ValueBytes),
-    lex(Tl, Tokens).
+    else if Head = ok(Char), char.is_alpha_or_underscore(Char) then
+        lex_keyword_or_identifier(!S, Res)
 
-punctuation(['('      | Tl], [token_paren_left     | TlTokens]) :- lex(Tl, TlTokens).
-punctuation([')'      | Tl], [token_paren_right    | TlTokens]) :- lex(Tl, TlTokens).
-punctuation([','      | Tl], [token_comma          | TlTokens]) :- lex(Tl, TlTokens).
-punctuation(['-', '>' | Tl], [token_hyphen_greater | TlTokens]) :- lex(Tl, TlTokens).
-punctuation([':'      | Tl], [token_colon          | TlTokens]) :- lex(Tl, TlTokens).
-punctuation([';'      | Tl], [token_semicolon      | TlTokens]) :- lex(Tl, TlTokens).
-punctuation(['='      | Tl], [token_equal          | TlTokens]) :- lex(Tl, TlTokens).
-punctuation(['['      | Tl], [token_bracket_left   | TlTokens]) :- lex(Tl, TlTokens).
-punctuation([']'      | Tl], [token_bracket_right  | TlTokens]) :- lex(Tl, TlTokens).
-punctuation(['{'      | Tl], [token_brace_left     | TlTokens]) :- lex(Tl, TlTokens).
-punctuation(['}'      | Tl], [token_brace_right    | TlTokens]) :- lex(Tl, TlTokens).
+    else if Head = ok(Char), Char = '"' then
+        lex_string_literal(!S, Res)
+
+    else
+        lex_punctuation(!S, Res)
+    ).
+
+:- pred lex_keyword_or_identifier(char_stream, char_stream, result(error, lexeme(token))).
+:- mode lex_keyword_or_identifier(in, out, out) is det.
+lex_keyword_or_identifier(!S, Res) :-
+    current_position(!.S, Pos),
+    many(satisfy(char.is_alnum_or_underscore), !S, ok(Chars)),
+    string.to_char_list(Name, Chars),
+    ( if keyword(Name, Token)
+    then Res = ok({Pos, Token})
+    else Res = ok({Pos, token_identifier(Name)}) ).
+
+:- pred lex_string_literal(char_stream, char_stream, result(error, lexeme(token))).
+:- mode lex_string_literal(in, out, out) is det.
+lex_string_literal(!S, Res) :-
+    current_position(!.S, Pos),
+
+    ( if
+        consume(!S, ok('"')),
+        IsntQuote = (pred(C::in) is semidet :- not C = '"'),
+        many(satisfy(IsntQuote), !S, ok(Chars)),
+        consume(!S, ok('"')),
+
+        % Convert the string to UTF-8.
+        list.map(char.to_utf8, Chars, ValueUtf8Points),
+        require_det (
+            list.condense(ValueUtf8Points, ValueUtf8Units),
+            {_, ValueBytes} = list.foldl(
+                (func(Unit, {Index, Bytes}) =
+                    {Index + 1, Bytes ^ byte(Index) := Unit}),
+                ValueUtf8Units,
+                {0, bitmap.init(8 * list.length(ValueUtf8Units))}
+            )
+        )
+
+    then
+        Res = ok({Pos, token_string(ValueBytes)})
+
+    else
+        Res = err(bad_string_literal(Pos)) ).
+
+:- pred lex_punctuation(char_stream, char_stream, result(error, lexeme(token))).
+:- mode lex_punctuation(in, out, out) is det.
+lex_punctuation(!S, Res) :-
+    current_position(!.S, Pos),
+
+    ( if consume(!S, ok(Char1)) then
+        (    if Char1 = ('(') then Res = ok({Pos, token_paren_left})
+        else if Char1 = (')') then Res = ok({Pos, token_paren_right})
+        else if Char1 = (',') then Res = ok({Pos, token_comma})
+        else if Char1 = (':') then Res = ok({Pos, token_colon})
+        else if Char1 = (';') then Res = ok({Pos, token_semicolon})
+        else if Char1 = ('=') then Res = ok({Pos, token_equal})
+        else if Char1 = ('[') then Res = ok({Pos, token_bracket_left})
+        else if Char1 = (']') then Res = ok({Pos, token_bracket_right})
+        else if Char1 = ('{') then Res = ok({Pos, token_brace_left})
+        else if Char1 = ('}') then Res = ok({Pos, token_brace_right})
+        else if Char1 = ('-') then
+            ( if consume(!S, ok(Char2)) then
+                ( if Char2 = ('>') then Res = ok({Pos, token_hyphen_greater})
+                else Res = err(unexpected_char(Pos, Char2)) )
+            else
+                Res = err(unexpected_eof) )
+        else Res = err(unexpected_char(Pos, Char1)) )
+    else
+        Res = err(unexpected_eof) ).
+
+/*
+
+
+*/

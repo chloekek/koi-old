@@ -14,6 +14,7 @@
 :- import_module koi_expression.
 :- import_module koi_lex.
 :- import_module koi_parse.
+:- import_module koi_recursive_descent.
 :- import_module koi_schema.
 :- import_module koi_value.
 :- import_module list.
@@ -65,13 +66,24 @@ main(!IO) :-
 
 phase_lex(Source, !IO) :-
     string.to_char_list(Source, Chars),
-    ( if koi_lex.lex(Chars, Tokens) then
-        write_string("Tokens:       ", !IO),
-        write(Tokens, !IO),
-        write_string("\n\n", !IO),
+    koi_recursive_descent.initial_position("<example>", Pos),
+    Stream = koi_recursive_descent.char_stream(Pos, Chars),
+    koi_lex.lex_tokens(Stream, Rest, Res),
+    % TODO: Check that Rest is empty.
+
+    write_string("Tokens:       ", !IO),
+    write(Res, !IO),
+    write_string("\n\n", !IO),
+
+    write_string("Rest:         ", !IO),
+    write(Rest, !IO),
+    write_string("\n\n", !IO),
+
+    ( if Res = koi_recursive_descent.ok(Lexemes) then
+        Tokens = list.map((func({_, T}) = T), Lexemes),
         phase_parse(Tokens, !IO)
     else
-        write_string("!! Bad lex\n", !IO) ).
+        true ).
 
 phase_parse(Tokens, !IO) :-
     ( if koi_parse.expression_1(Expr, Tokens, []) then
