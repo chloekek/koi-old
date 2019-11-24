@@ -39,6 +39,14 @@ main(!IO) :-
                            (arguments : [string]) =
                 __builtin_deployment {files, program, arguments};
 
+            fun sequence (first : deployment)
+                         (second : deployment) =
+                __builtin_sequence {first, second};
+
+            fun remote (host : string)
+                       (inner : deployment) =
+                __builtin_remote {host, inner};
+
             val command = deployment [];
 
             val systemctl = command \"systemctl\";
@@ -47,7 +55,11 @@ main(!IO) :-
                 systemctl [\"reload\", unit];
 
         in
-            systemctl_reload \"postgresql\"
+            remote \"wiki\" (
+                sequence
+                    (systemctl_reload \"nginx\")
+                    (systemctl_reload \"php-fpm\")
+            )
     ",
     phase_lex(Source, !IO).
 

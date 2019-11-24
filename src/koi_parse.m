@@ -124,6 +124,11 @@ field(Name - Expr, !Tokens) :-
     Expr = koi_expression.variable(Name).
 
 expression_3(Expr, !Tokens) :-
+    !.Tokens = [token_paren_left  | !:Tokens],
+    expression_1(Expr,               !Tokens),
+    !.Tokens = [token_paren_right | !:Tokens].
+
+expression_3(Expr, !Tokens) :-
     !.Tokens = [token_fun            | !:Tokens],
     many(param, Params,                 !Tokens),
     !.Tokens = [token_hyphen_greater | !:Tokens],
